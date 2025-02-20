@@ -10,10 +10,10 @@ router.get('/', function(req, res, next) {
 });
 
 router.post('/add-castle', function (req, res, next) {
-  var { nombre, pais, lat, lng } = req.body;
+  var { nombre, pais, lat, lng, descripcion, imagen } = req.body;
 
   // Validar que los datos estén presentes
-  if (!nombre || !pais || !lat || !lng) {
+  if (!nombre || !pais || !lat || !lng || !descripcion || !imagen ) {
     return res.status(400).json({
       success: false,
       message: 'Faltan datos obligatorios (nombre, pais, lat, lng).'
@@ -25,7 +25,9 @@ router.post('/add-castle', function (req, res, next) {
     nombre: nombre,
     pais: pais,
     latitud: lat,
-    longitud: lng
+    longitud: lng,
+    descripcion: descripcion,
+    imagen: imagen
   };
 
   // Agregar el castillo
@@ -79,6 +81,25 @@ router.post('/login', (req,res)=>{
     })
   }
 })
+
+router.post('/edit-castle/:id', (req, res) => {
+  var index = parseInt(req.params.id, 10);
+  var oldCastle = data.getByIndex(index);
+
+  if (!oldCastle) {
+    return res.status(404).json({ success: false, message: "Castillo no encontrado" });
+  }
+
+  var nombre = req.body.nombre?.trim() || oldCastle.nombre;
+  var pais = req.body.pais?.trim() || oldCastle.pais;
+  var descripcion = req.body.descripcion?.trim() || oldCastle.descripcion;
+  var imagen = req.body.imagen?.trim() || oldCastle.imagen;
+
+  data.editCastle(oldCastle, nombre, descripcion, pais, imagen);
+
+  res.json({ success: true });
+});
+
 
 router.get('/checksession', (req,res)=>{
   return res.json({

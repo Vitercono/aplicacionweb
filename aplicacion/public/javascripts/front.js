@@ -66,6 +66,13 @@ document.addEventListener("DOMContentLoaded", () => {
 if(document.querySelector("#mapa")){
 
     var map = L.map('mapa').setView([36.73, -4.42], 6);
+
+    var mapCenter = JSON.parse(localStorage.getItem('mapCenter'))
+
+    if (mapCenter) {
+        map.setView([mapCenter.lat, mapCenter.lng])
+    }
+
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
@@ -82,13 +89,18 @@ if(document.querySelector("#mapa")){
             
             marker.addEventListener("click", () => {
                 Swal.fire({
-                    title: el.nombre,
-                    icon: "info",
+                    title: el.nombre + ", " + el.pais + ", [" + el.latitud + "," + el.longitud + "]",
+                    text: el.descripcion,
+                    imageUrl: el.imagen,
+                    imageWidth: 400,
+                    imageHeight: 300,
+                    imageAlt: "Imagen del castillo",
                     showCancelButton: true,
                     confirmButtonColor: "#ff0000",
                     confirmButtonText: "Eliminar ubicacion",
                     cancelButtonColor: "#00ffff",
-                    cancelButtonText: "Ok"
+                    cancelButtonText: "Ok",
+                    footer: `<button data-index="`+index+`" data-lat="`+el.latitud+`" data-lon="`+el.longitud+`" data-nombre="`+el.nombre+`" data-descripcion="`+el.descripcion+`" data-imagen="`+el.imagen+`" data-pais="`+el.pais+`" class="btn btn-warning" onClick="startEditing(event)">Editar registro</button>`
                 }).then((result) => {
                     if (result.isConfirmed) {
                         Swal.fire({
@@ -138,6 +150,68 @@ if(document.querySelector("#mapa")){
         });
     })
     .catch(err => console.log(err));
+
+    function startEditing(event){
+        Swal.close();
+        var index = event.target.dataset.index;
+        var name = event.target.dataset.nombre;
+        var imagen = event.target.dataset.imagen;
+        var pais = event.target.dataset.pais;
+        var descripcion = event.target.dataset.descripcion;
+
+        //Adicionalmente tengo que pillar las coordenadas
+        var lat = event.target.dataset.lat;
+        var lng = event.target.dataset.lon;
+
+        localStorage.setItem('mapCenter', JSON.stringify({lat:lat, lng:lng}))
+        console.log(index)
+
+        Swal.fire({
+            title: "Editando: " + name,
+            html: ` <h2>Los campos que se dejen vacíos se quedarán como estaban</h2>
+                    <input type="text" id="name" class="swal2-input" placeholder="` + name + `">
+                    <input type="text" id="desc" class="swal2-input" placeholder="` + descripcion + `">
+                    <input type="text" id="pais" class="swal2-input" placeholder="` + pais + `">
+                    <input type="text" id="imagen" class="swal2-input" placeholder="` + imagen + `">
+                `,
+            allowOutsideClick: false,
+            cancelButtonText: "Cancelar",
+            confirmButtonText: "Actualizar"
+        }).then((response) => {
+            if (response.isConfirmed) {
+                var updatedName = document.getElementById("name").value || name;
+                var updatedDesc = document.getElementById("desc").value || descripcion;
+                var updatedPais = document.getElementById("pais").value || pais;
+                var updatedImagen = document.getElementById("imagen").value || imagen;
+        
+                fetch(`/api/edit-castle/${index}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        nombre: updatedName,
+                        pais: updatedPais,
+                        descripcion: updatedDesc,
+                        imagen: updatedImagen
+                    })
+                }).then(response => response.json())
+                .then((response) => {
+                    if (response.success) {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Cambios realizados con éxito'
+                        }).then((response)=>{
+                            if (response.isConfirmed) {
+                                window.location.reload();
+                            }
+                        })
+                    }
+                }).catch(error => {
+                    console.error('Error al actualizar el castillo:', error);
+                });
+            }
+        });
+        
+    }
     
     const secretSauce = document.querySelector("#secretSauce")
     secretSauce.addEventListener("click",()=>{
@@ -147,7 +221,6 @@ if(document.querySelector("#mapa")){
                 const userLat = position.coords.latitude;
                 const userLng = position.coords.longitude;
         
-                // Función para calcular la distancia usando la fórmula Haversine
                 function haversineDistance(lat1, lon1, lat2, lon2) {
                     const R = 6371; // Radio de la Tierra en km
                     const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -218,6 +291,8 @@ if(document.querySelector("#mapa")){
             e.preventDefault;
             
             var {lat, lng} = e.latlng;
+
+            localStorage.setItem('mapCenter', JSON.stringify({lat:lat, lng:lng}))
     
             Swal.fire({
                 title: "Introduce el nombre de la ubicacion:",
@@ -239,42 +314,74 @@ if(document.querySelector("#mapa")){
                         },
                         showCancelButton: true,
                         confirmButtonText: "Confirmar",
-                    }).then((result)=>{
-                        if (result.isConfirmed){
-                            map.removeEventListener();
-                            botonadd.disabled = false
-
+                    }).then((result) =>{
+                        if (result.isConfirmed) {
                             var country = result.value
-    
-                            console.log(name + " | " + country + " | " + lat + " | " + lng)
-    
-                            fetch('/api/add-castle', {
-                                method: 'POST',
-                                headers: {
-                                  'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({
-                                  nombre:name,
-                                  pais:country,
-                                  lat:lat,
-                                  lng:lng
-                                })
-                              })
-                                .then(response => response.json())
-                                .then(data => {
-                                  if (data.success) {
-                                    console.log('Castillo agregado:', data.data);
-                                    window.location.reload();
 
-                                  } else {
-                                    console.error('Error:', data.message);
-                                  }
-                                })
-                                .catch(error => {
-                                  console.error('Error en la solicitud:', error);
-                                });
+                            Swal.fire({
+                                title: "Añade una descipción a la ubicación...",
+                                input: "text",
+                                inputAttributes: {
+                                    autocapitalize: "off"
+                                },
+                                showCancelButton:true,
+                                confirmButtonText: "Confirmar",
+                            }).then((result) =>{
+                                if (result.isConfirmed) {
+                                    var descripcion = result.value;
+
+                                    Swal.fire({
+                                        title: "Ya casi, ¡solo queda la imagen! Adjunta una URL",
+                                        input: "text",
+                                        inputAttributes: {
+                                            autocapitalize: "off"
+                                        },
+                                        showCancelButton:true,
+                                        confirmButtonText: "Terminar"
+                                    }).then((result)=>{
+                                        if (result.isConfirmed){
+                                            map.removeEventListener();
+                                            botonadd.disabled = false
+                
+                                            var imagen = result.value
+                    
+                                            console.log(name + " | " + country + " | " + lat + " | " + lng + " | " + descripcion + " | " + imagen)
+                    
+                                            fetch('/api/add-castle', {
+                                                method: 'POST',
+                                                headers: {
+                                                  'Content-Type': 'application/json'
+                                                },
+                                                body: JSON.stringify({
+                                                  nombre:name,
+                                                  pais:country,
+                                                  lat:lat,
+                                                  lng:lng,
+                                                  descripcion:descripcion,
+                                                  imagen:imagen
+                                                })
+                                              })
+                                                .then(response => response.json())
+                                                .then(data => {
+                                                  if (data.success) {
+                                                    console.log('Castillo agregado:', data.data);
+                                                    window.location.reload();
+                
+                                                  } else {
+                                                    console.error('Error:', data.message);
+                                                  }
+                                                })
+                                                .catch(error => {
+                                                  console.error('Error en la solicitud:', error);
+                                                });
+                                        }
+                                    })
+                                }
+                            })
                         }
                     })
+                    
+                    
                 }
             })
         })
